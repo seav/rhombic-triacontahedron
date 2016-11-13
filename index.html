@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Rhombic Triacontahedron</title>
+<link href="https://fonts.googleapis.com/css?family=Open+Sans+Condensed:700" rel="stylesheet">
+<style type="text/css">
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #202428;
+}
+
+#svg {
+  position: absolute;
+  top: 0px; left: 0px;
+}
+
+polygon {
+  opacity: 0;
+  fill-opacity: 0.85;
+  stroke-width: 0.4px;
+  stroke-opacity: 0.5;
+  stroke-linejoin: miter;
+  transition-property: opacity;
+  transition-duration: 0.5s;
+}
+
+#back polygon {
+  fill-opacity: 0;
+  stroke-width: 0.8px;
+  stroke-linejoin: round;
+}
+
+.active-faces polygon {
+  opacity: 1;
+}
+
+line.major, line.minor {
+  opacity: 0;
+  stroke-linecap: round;
+  stroke-width: 5px;
+  stroke-opacity: 0;
+  transition-property: opacity;
+  transition-duration: 0.5s;
+}
+
+.active-major line.major { opacity: 1; }
+.active-minor line.minor { opacity: 1; }
+
+#control {
+  position: absolute;
+  top: 20px; left: 20px;
+}
+
+input {
+  display: none;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 20px;
+  line-height: 20px;
+  font-family: "Open Sans Condensed", sans-serif;
+  text-transform: uppercase;
+  font-weight: bold;
+  transition-property: color;
+  transition-duration: 0.5s;
+}
+
+input + label {
+  color: #888;
+}
+
+input:checked + label {
+  color: #fff;
+}
+
+input + label::before {
+  content: "";
+  text-align: center;
+  display: inline-block;
+  margin: 0 10px 3px 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #888;
+  border-radius: 4px;
+  vertical-align: middle;
+  font-family: sans-serif;
+  transition-property: border-color, background-color;
+  transition-duration: 0.5s;
+}
+
+input:checked + label::before {
+  border-color: #ffa;
+  background: #ffa;
+}
+
+</style>
+</head>
+<body>
+<svg id="svg">
+  <g id="back"></g>
+  <g id="front"></g>
+</svg>
+<div id="control">
+  <input type="checkbox" id="faces-ctrl" /> <label for="faces-ctrl">rhombic triacontahedron</label>
+  <input type="checkbox" id="major-ctrl" /> <label for="major-ctrl">icosahedron</label>
+  <input type="checkbox" id="minor-ctrl" /> <label for="minor-ctrl">dodecahedron</label>
+</div>
+<script type="text/javascript">
+'use strict';
+
+// Constants
+var SVG_NS        = 'http://www.w3.org/2000/svg';
+var PHI           = 0.5 + Math.sqrt(5)/2;
+var NUM_FACES     = 30;
+var FIVE_SYMMETRY = 5;
+
+// Parameters
+var RADIUS_FACTOR = 0.9;
+var THETA_DELTA   = 0.0025;
+var RHO_DELTA     = 0.0020;
+var SIGMA_DELTA   = 0.0015;
+
+// Globals
+var Vertices                = [];
+var Faces                   = [];
+var MajorDiagonals          = [];
+var MinorDiagonals          = [];
+var MaxRadius;
+var ViewportHalfWidth;
+var ViewportHalfHeight;
+var ScaleFactor;
+var SVGBase;
+var FrontSVG;
+var BackSVG;
+var FacesSVG                = [];
+var MajorDiagonalsSVG       = [];
+var MinorDiagonalsSVG       = [];
+var Theta                   = 0;
+var Rho                     = 0;
+var Sigma                   = 0;
+var TriacontahedronIsActive = true;
+var IcosahedronIsActive     = false;
+var DodecahedronIsActive    = false;
+
+// ------------------------------------------------------------
+
+// This initializes the app by preparing the SVG and activating the UI
+function init() {
+
+  var i, j;
+  var viewportWidth  = document.documentElement.clientWidth;
+  var viewportHeight = document.documentElement.clientHeight;
+  var faceSvg, diagonalSvg;
+
+  ViewportHalfWidth  = viewportWidth/2;
+  ViewportHalfHeight = viewportHeight/2
+
+  // Cache SVG layers and resize the main SVG element to the viewport size
+  SVGBase  = document.getElementById('svg');
+  FrontSVG = document.getElementById('front');
+  BackSVG  = document.getElementById('back');
+  SVGBase.style.width  = viewportWidth  + 'px';
+  SVGBase.style.height = viewportHeight + 'px';
+
+  // Create the SVG elements for the faces and corresponding diagonals
+  for (i = 0; i < NUM_FACES; i++) {
+
+    faceSvg = document.createElementNS(SVG_NS, 'polygon');
+    faceSvg.isFront = false;
+    BackSVG.appendChild(faceSvg);
+    FacesSVG.push(faceSvg);
+
+    for (j = 0; j < 2; j++) {
+      diagonalSvg = document.createElementNS(SVG_NS, 'line');
+      BackSVG.appendChild(diagonalSvg);
+      if (j%2 == 0) {
+        diagonalSvg.setAttribute('class', 'major');
+        MajorDiagonalsSVG.push(diagonalSvg);
+      }
+      else {
+        diagonalSvg.setAttribute('class', 'minor');
+        MinorDiagonalsSVG.push(diagonalSvg);
+      }
+    }
+  }
+
+  constructGeometry();
+  updateVisibility();
+
+  // Activate the controls
+  document.getElementById('control').addEventListener('change', toggleControl);
+  document.getElementById('faces-ctrl' ).checked = TriacontahedronIsActive;
+  document.getElementById('major-ctrl' ).checked = IcosahedronIsActive;
+  document.getElementById('minor-ctrl' ).checked = DodecahedronIsActive;
+
+  // Predefined views
+  //drawGeometry(0, 0, 0);              // 10-symmetry orthogonal projection
+  //drawGeometry(Math.PI/2, 0.653, 0);  // 6-symmetry orthogonal projection
+  //drawGeometry(1, 2.6, 4.3);          // Aesthetic oblique view
+
+  // Start the app
+  requestAnimationFrame(animateGeometry);
+}
+
+
+// This generates the data representing the rhombic triacontahedron and the
+// corresponding icosahedron and dodecahedron
+function constructGeometry() {
+
+  var i, j;
+  var temp = [];
+  var angle, xr, yr, xs, ys, inv;
+
+  // Math constants
+  var x        = Math.sqrt(PHI + 2) / 2;
+  var alphaDeg = 63.434948822922;
+  var alphaRad = Math.PI*alphaDeg/180;
+  var y        = PHI/(2*Math.cos((Math.PI - alphaRad)/2));
+  var r        = y*Math.sin(alphaRad);
+  var s        = x*Math.sin(alphaRad);
+  var t        = y*Math.cos(alphaRad);
+  var u        = x - t;
+  var v        = y - x*Math.cos(alphaRad);
+
+  // Generate the vertices
+  for (i = 0; i < FIVE_SYMMETRY; i++) {
+    angle = i*Math.PI/5;
+    xr    = r*Math.cos(angle);
+    yr    = r*Math.sin(angle);
+    xs    = s*Math.cos(angle);
+    ys    = s*Math.sin(angle);
+    inv   = i%2 != 0 ? 1 : -1;
+    Vertices.push(new Point3D( xr,  yr,  inv*t));
+    Vertices.push(new Point3D( xr,  yr, -inv*u));
+    Vertices.push(new Point3D( xs,  ys, -inv*v));
+    temp    .push(new Point3D(-xr, -yr, -inv*t));
+    temp    .push(new Point3D(-xr, -yr,  inv*u));
+    temp    .push(new Point3D(-xs, -ys,  inv*v));
+  }
+  for (i = 0; i < 15; i++) Vertices.push(temp[i]);
+  Vertices.push(new Point3D(0, 0, -y));
+  Vertices.push(new Point3D(0, 0,  y));
+
+  // Generate faces and diagonals
+  for (i = 0; i < FIVE_SYMMETRY; i++) {
+
+    Faces.push([             30, (i*6 + 5) % 30, (i*6 +  0) % 30, (i*6 + 29) % 30]);
+    Faces.push([(i*6 +  0) % 30, (i*6 + 4) % 30, (i*6 +  3) % 30, (i*6 +  1) % 30]);
+    Faces.push([(i*6 +  3) % 30, (i*6 + 2) % 30, (i*6 + 27) % 30, (i*6 +  1) % 30]);
+    Faces.push([             31, (i*6 + 2) % 30, (i*6 +  3) % 30, (i*6 +  8) % 30]);
+    Faces.push([(i*6 +  3) % 30, (i*6 + 4) % 30, (i*6 +  6) % 30, (i*6 +  7) % 30]);
+    Faces.push([(i*6 +  0) % 30, (i*6 + 5) % 30, (i*6 +  6) % 30, (i*6 +  4) % 30]);
+
+    for (j = 0; j < NUM_FACES/FIVE_SYMMETRY; j++) {
+      MajorDiagonals.push([Faces[i*6 + j][0], Faces[i*6 + j][2]]);
+      MinorDiagonals.push([Faces[i*6 + j][1], Faces[i*6 + j][3]]);
+    }
+  }
+
+  // Compute the scaling so the polyhedron fits the viewport
+  MaxRadius = y;
+  ScaleFactor = RADIUS_FACTOR * Math.min(ViewportHalfWidth, ViewportHalfHeight) / MaxRadius;
+}
+
+
+// This updates the SVG to reflect the specified rotation
+function drawGeometry(theta, rho, sigma) {
+
+  var i, j, x, y, z, xNew, yNew, zNew, xSum, ySum, zSum, zNormalized;
+  var txVertices = [];
+  var face, majorDiagonal, minorDiagonal;
+  var faceSvg, majorDiagonalSvg, minorDiagonalSvg;
+  var pointsString, rgbString, opacity;
+  var xGradient, yGradient, xyGradient1, xyGradient2;
+
+  // Transform each vertex based on the 3 supplied rotation variables
+  for (i = 0; i < Vertices.length; i++) {
+
+    x = Vertices[i].x;
+    y = Vertices[i].y;
+    z = Vertices[i].z;
+
+    // Apply rho (xz)
+    xNew = x*Math.cos(rho) - z*Math.sin(rho);
+    zNew = x*Math.sin(rho) + z*Math.cos(rho);
+    x = xNew;
+    z = zNew;
+
+    // Apply theta (xy)
+    xNew = x*Math.cos(theta) - y*Math.sin(theta);
+    yNew = x*Math.sin(theta) + y*Math.cos(theta);
+    x = xNew;
+    y = yNew;
+
+    // Apply sigma (yz)
+    yNew = y*Math.cos(sigma) - z*Math.sin(sigma);
+    zNew = y*Math.sin(sigma) + z*Math.cos(sigma);
+    y = yNew;
+    z = zNew;
+
+    txVertices.push(new Point3D(x, y, z));
+  }
+
+  // Redraw each face and corresponding diagonals
+  for (i = 0; i < Faces.length; i++) {
+
+    face             = Faces[i];
+    majorDiagonal    = MajorDiagonals[i];
+    minorDiagonal    = MinorDiagonals[i];
+    faceSvg          = FacesSVG[i];
+    majorDiagonalSvg = MajorDiagonalsSVG[i];
+    minorDiagonalSvg = MinorDiagonalsSVG[i];
+
+    // Set the position of each face
+    pointsString = '';
+    xSum = 0;
+    ySum = 0;
+    zSum = 0;
+    for (j = 0; j < face.length; j++) {
+      xSum += txVertices[face[j]].x;
+      ySum += txVertices[face[j]].y;
+      zSum += txVertices[face[j]].z;
+      pointsString +=
+        (ScaleFactor*txVertices[face[j]].x + ViewportHalfWidth) + ',' +
+        (ScaleFactor*txVertices[face[j]].y + ViewportHalfHeight);
+      pointsString += j < 3 ? ' ' : '';
+    }
+    faceSvg.setAttribute('points', pointsString);
+
+    // Set the position of corresponding diagonals
+    majorDiagonalSvg.setAttribute('x1', ScaleFactor * txVertices[majorDiagonal[0]].x + ViewportHalfWidth);
+    majorDiagonalSvg.setAttribute('y1', ScaleFactor * txVertices[majorDiagonal[0]].y + ViewportHalfHeight);
+    majorDiagonalSvg.setAttribute('x2', ScaleFactor * txVertices[majorDiagonal[1]].x + ViewportHalfWidth);
+    majorDiagonalSvg.setAttribute('y2', ScaleFactor * txVertices[majorDiagonal[1]].y + ViewportHalfHeight);
+    minorDiagonalSvg.setAttribute('x1', ScaleFactor * txVertices[minorDiagonal[0]].x + ViewportHalfWidth);
+    minorDiagonalSvg.setAttribute('y1', ScaleFactor * txVertices[minorDiagonal[0]].y + ViewportHalfHeight);
+    minorDiagonalSvg.setAttribute('x2', ScaleFactor * txVertices[minorDiagonal[1]].x + ViewportHalfWidth);
+    minorDiagonalSvg.setAttribute('y2', ScaleFactor * txVertices[minorDiagonal[1]].y + ViewportHalfHeight);
+
+    // Set the color and layer of each face and corresponding diagonals
+
+    zNormalized = zSum/face.length/MaxRadius;
+    xGradient   = Math.min(Math.floor(( xSum + 6) * 25), 255);
+    yGradient   = Math.min(Math.floor((-ySum + 6) * 25), 255);
+    xyGradient1 = Math.floor(Math.min(xGradient, yGradient) * 0.6);
+    xyGradient2 = Math.floor((xGradient + yGradient) / 2);
+
+    majorDiagonalSvg.style.stroke = 'rgb(' + xyGradient2 + ',' + xyGradient2 + ',' + 0 + ')';
+    minorDiagonalSvg.style.stroke = 'rgb(' + 0 + ',' + xyGradient2 + ',' + xyGradient2 + ')';;
+
+    if (zSum > 0) {
+      // Face faces the viewer
+      rgbString = 'rgb(' + xGradient + ',' + xyGradient1 + ',' + yGradient + ')';
+      faceSvg.style.fill   = rgbString;
+      faceSvg.style.stroke = rgbString;
+      majorDiagonalSvg.style.strokeOpacity = 0.8;
+      minorDiagonalSvg.style.strokeOpacity = 0.8;
+      if (!faceSvg.isFront) {
+        faceSvg.isFront = true;
+        BackSVG .removeChild(faceSvg);
+        BackSVG .removeChild(minorDiagonalSvg);
+        BackSVG .removeChild(majorDiagonalSvg);
+        FrontSVG.appendChild(faceSvg);
+        FrontSVG.appendChild(minorDiagonalSvg);
+        FrontSVG.appendChild(majorDiagonalSvg);
+      }
+    }
+    else {
+      // Face faces away from the viewer
+      faceSvg.style.stroke = 'white';
+      faceSvg.style.strokeOpacity = Math.max(0, -zNormalized*1.2 - 0.2);
+      opacity = 0.8 + 0.7 * zNormalized;
+      majorDiagonalSvg.style.strokeOpacity = opacity;
+      minorDiagonalSvg.style.strokeOpacity = opacity;
+      if (faceSvg.isFront) {
+        faceSvg.isFront = false;
+        FrontSVG.removeChild(majorDiagonalSvg);
+        FrontSVG.removeChild(minorDiagonalSvg);
+        FrontSVG.removeChild(faceSvg);
+        BackSVG .appendChild(majorDiagonalSvg);
+        BackSVG .appendChild(minorDiagonalSvg);
+        BackSVG .appendChild(faceSvg);
+      }
+    }
+  }
+}
+
+
+// Animation controller
+function animateGeometry() {
+  requestAnimationFrame(animateGeometry);
+  Theta += THETA_DELTA;
+  Rho   += RHO_DELTA;
+  Sigma += SIGMA_DELTA;
+  drawGeometry(Theta, Rho, Sigma);
+}
+
+
+// Handler for the clicking of the control elements
+function toggleControl(evt) {
+  var id = evt.target.id;
+  var checked = evt.target.checked;
+  if      (id == 'faces-ctrl' ) TriacontahedronIsActive = checked;
+  else if (id == 'major-ctrl' ) IcosahedronIsActive     = checked;
+  else if (id == 'minor-ctrl' ) DodecahedronIsActive    = checked;
+  updateVisibility();
+}
+
+
+// This updates the visibility of the SVG elements based on control changes
+function updateVisibility() {
+  var svgActiveClass = '';
+  if (TriacontahedronIsActive) svgActiveClass =  'active-faces';
+  if (IcosahedronIsActive)     svgActiveClass += ' active-major';
+  if (DodecahedronIsActive)    svgActiveClass += ' active-minor';
+  SVGBase.setAttribute('class', svgActiveClass);
+}
+
+// ------------------------------------------------------------
+
+// Class declaration for representing a 3D point
+function Point3D(x, y, z) {
+  this.x = x;
+  this.y = y;
+  this.z = z;
+}
+
+// ------------------------------------------------------------
+
+init();
+
+</script>
+</body></html>
