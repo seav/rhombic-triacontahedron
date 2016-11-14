@@ -123,7 +123,9 @@ var PHI                   = 0.5 + Math.sqrt(5)/2;
 var NUM_FACES             = 30;
 var NUM_VERTICES          = 32;
 var NUM_VERTICES_PER_FACE = 4;
+var TWO_SYMMETRY          = 2;
 var FIVE_SYMMETRY         = 5;
+var NUM_NONPOLE_VERTICES  = 30;
 
 // Parameters
 var RADIUS_FACTOR = 0.9;
@@ -218,7 +220,8 @@ function init() {
 // corresponding icosahedron and dodecahedron
 function constructGeometry() {
 
-  var i, j;
+  var i, j, k, l;
+  var referenceVertexIndices, face, index;
   var angle, xr, yr, xs, ys, inv;
 
   // Math constants
@@ -248,19 +251,34 @@ function constructGeometry() {
   }
   Vertices[30] = (new Point3D(0, 0, -q));
 
-  // Generate faces and diagonals by referencing to the vertices
+  // Define three faces as an array of vertex indices. These will be used to
+  // construct the full set of faces through symmetry.
+  referenceVertexIndices = [
+    [0, 29, 30, 5],  // Polar face
+    [0,  5,  6, 4],  // Mid-latitude face
+    [0,  4,  3, 1],  // Equatorial face
+  ];
+
+  // Generate faces and diagonals using the reference indices through symmetry
   for (i = 0; i < FIVE_SYMMETRY; i++) {
-
-    Faces.push([             30, (i*6 + 5) % 30, (i*6 +  0) % 30, (i*6 + 29) % 30]);
-    Faces.push([(i*6 +  0) % 30, (i*6 + 4) % 30, (i*6 +  3) % 30, (i*6 +  1) % 30]);
-    Faces.push([(i*6 +  3) % 30, (i*6 + 2) % 30, (i*6 + 27) % 30, (i*6 +  1) % 30]);
-    Faces.push([             31, (i*6 + 2) % 30, (i*6 +  3) % 30, (i*6 +  8) % 30]);
-    Faces.push([(i*6 +  3) % 30, (i*6 + 4) % 30, (i*6 +  6) % 30, (i*6 +  7) % 30]);
-    Faces.push([(i*6 +  0) % 30, (i*6 + 5) % 30, (i*6 +  6) % 30, (i*6 +  4) % 30]);
-
-    for (j = 0; j < NUM_FACES/FIVE_SYMMETRY; j++) {
-      MajorDiagonals.push([Faces[i*6 + j][0], Faces[i*6 + j][2]]);
-      MinorDiagonals.push([Faces[i*6 + j][1], Faces[i*6 + j][3]]);
+    for (j = 0; j < TWO_SYMMETRY; j++) {
+      for (k = 0; k < NUM_FACES / FIVE_SYMMETRY / TWO_SYMMETRY; k++) {
+        face = [];
+        for (l = 0; l < NUM_VERTICES_PER_FACE; l++) {
+          index = referenceVertexIndices[k][l];
+          if (index < NUM_NONPOLE_VERTICES) {
+            index += (i + j/TWO_SYMMETRY) * NUM_FACES / FIVE_SYMMETRY;
+            index %= NUM_NONPOLE_VERTICES;
+          }
+          else {
+            index += j;
+          }
+          face.push(index);
+        }
+        Faces.push(face);
+        MajorDiagonals.push([face[0], face[2]]);
+        MinorDiagonals.push([face[1], face[3]]);
+      }
     }
   }
 
