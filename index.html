@@ -51,6 +51,9 @@ line.major, line.minor {
 #control {
   position: absolute;
   top: 20px; left: 20px;
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
 }
 
 #control div {
@@ -72,6 +75,7 @@ label {
   font-weight: bold;
   transition-property: color;
   transition-duration: 0.5s;
+  cursor: pointer;
 }
 
 input + label {
@@ -207,9 +211,10 @@ function init() {
   document.getElementById('minor-ctrl' ).checked = DodecahedronIsActive;
 
   // Predefined views
-  //drawGeometry(0, 0, 0);              // 10-symmetry orthogonal projection
-  //drawGeometry(Math.PI/2, 0.652, 0);  // 6-symmetry orthogonal projection: arctan(s/v)
-  //drawGeometry(1, 2.6, 4.3);          // Aesthetic oblique view
+  //drawGeometry(0, 0, 0);                   // 10-symmetry orthogonal projection
+  //drawGeometry(0, 0.6523581397843681, 0);  // 6-symmetry orthogonal projection: arctan(s/v)
+  //drawGeometry(0, -Math.atan(1/PHI), 0);   // 2-symmetry orthogonal projection
+  //drawGeometry(1, 2.6, 4.3);               // Aesthetic oblique view
 
   // Start the app
   requestAnimationFrame(animateGeometry);
@@ -225,7 +230,7 @@ function constructGeometry() {
   var angle, xr, yr, xs, ys, inv;
 
   // Math constants
-  var theta = 63.434948822922 * Math.PI/180;
+  var theta = 2*Math.atan(1/PHI);
   var p     = Math.sqrt(PHI + 2) / 2;
   var q     = PHI / (2 * Math.cos((Math.PI - theta) / 2));
   var r     = q*Math.sin(theta);
