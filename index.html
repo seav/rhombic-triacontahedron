@@ -10,6 +10,10 @@ html, body {
   margin: 0;
   padding: 0;
   background: #202428;
+  font-family: "Open Sans Condensed", sans-serif;
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
 }
 
 #svg {
@@ -51,9 +55,6 @@ line.major, line.minor {
 #control {
   position: absolute;
   top: 20px; left: 20px;
-  user-select: none;
-  -moz-user-select: none;
-  -webkit-user-select: none;
 }
 
 #control div {
@@ -70,12 +71,10 @@ label {
   height: 20px;
   font-size: 21px;
   line-height: 20px;
-  font-family: "Open Sans Condensed", sans-serif;
   text-transform: uppercase;
   font-weight: bold;
   transition-property: color;
   transition-duration: 0.5s;
-  cursor: pointer;
 }
 
 input + label {
@@ -99,11 +98,24 @@ input + label::before {
   font-family: sans-serif;
   transition-property: border-color, background-color;
   transition-duration: 0.5s;
+  cursor: pointer;
 }
 
 input:checked + label::before {
   border-color: #ffa;
   background: #ffa;
+}
+
+nav {
+  position: absolute;
+  bottom: 20px; left: 20px;
+  font-size: 16px;
+  text-transform: uppercase;
+  color: #888;
+}
+
+nav a {
+  color: #888;
 }
 
 </style>
@@ -118,6 +130,10 @@ input:checked + label::before {
   <div><input type="checkbox" id="major-ctrl" /> <label for="major-ctrl">icosahedron</label></div>
   <div><input type="checkbox" id="minor-ctrl" /> <label for="minor-ctrl">dodecahedron</label></div>
 </div>
+<nav>
+  <a href="http://www.vaes9.com/posts/rhombic_triacontahedron">Article</a> •
+  <a href="https://github.com/seav/rhombic-triacontahedron/">GitHub</a>
+</nav>
 <script type="text/javascript">
 'use strict';
 
@@ -249,12 +265,12 @@ function constructGeometry() {
     yr    = r*Math.sin(angle);
     xs    = s*Math.cos(angle);
     ys    = s*Math.sin(angle);
-    inv   = i%2 != 0 ? 1 : -1;
+    inv   = i%2 == 0 ? 1 : -1;
     Vertices.push(new Point3D(xr, yr,  inv*t));
     Vertices.push(new Point3D(xr, yr, -inv*u));
     Vertices.push(new Point3D(xs, ys, -inv*v));
   }
-  Vertices[30] = (new Point3D(0, 0, -q));
+  Vertices[30] = (new Point3D(0, 0, q));
 
   // Define three faces as an array of vertex indices. These will be used to
   // construct the full set of faces through symmetry.
